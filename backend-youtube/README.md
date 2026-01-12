@@ -1,6 +1,6 @@
 # Let's Build It: AI Chatbot Using Your Data in .NET
 
-## Back End
+## Back End (YouTube Transcripts)
 
 > The project uses [.NET version 10](https://dotnet.microsoft.com/en-us/download/dotnet/10.0) so install the .NET SDK in order to run locally.
 
@@ -30,12 +30,4 @@ Your final [appsettings.json](./appsettings.json) should look like this:
     "PINECONE_API_KEY": "<< your api key >>>"
   }
 }
-```
-
-### Wikipedia Client
-
-Be good netizen and put your email address into [WikipediaClient.cs](./Services/WikipediaClient.cs#L18) when calling the Wikipedia api.
-
-```csharp
-WikipediaHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("(contact:you@example.com)"));
 ```

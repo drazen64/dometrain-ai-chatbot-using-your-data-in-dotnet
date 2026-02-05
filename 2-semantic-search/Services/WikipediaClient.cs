@@ -1,0 +1,128 @@
+
+using System.ComponentModel;
+using System.Data.SqlTypes;
+using System.Linq.Expressions;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.NetworkInformation;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Xml;
+using ChatBot.Models;
+using Microsoft.VisualBasic;
+
+namespace ChatBot.Services;
+
+public partial class WikipediaClient
+{
+    private static readonly HttpClient WikipediaHttpClient = new();
+    
+    static WikipediaClient()
+    {
+        WikipediaHttpClient.DefaultRequestHeaders.UserAgent.Clear();
+        WikipediaHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AICourseBot", "1.0"));
+        WikipediaHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("(contact:you@example.com)"));
+    }
+
+    private static readonly JsonSerializerOptions JSonOpts = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
+    private sealed class WikiApiResponse
+    {
+        [JsonPropertyName("query")]
+        public WikiQuery? Query { get; set; }
+    }
+
+    private sealed class WikiQuery
+    {
+        [JsonPropertyName("pages")]
+        public List<WikiPage> Pages { get; set; } = new();
+    }
+
+    private sealed class WikiPage
+    {
+        [JsonPropertyName("pageid")]
+        public long? PageId { get; set; }
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("extract")]
+        public string? Extract { get; set; }
+
+        [JsonPropertyName("missing")]
+        public bool? Missing { get; set; }
+    }
+
+
+    /// <summary>
+    /// Create URL for Wikipedia article
+    /// </summary>
+    /// <param name="pageTitle"></param>
+    /// <param name="full"></param>
+    /// <returns></returns>
+    static string CreateWikipediaUrl(string pageTitle, bool full)
+    {
+        var urlBuilder = new UriBuilder("https://en.wikipedia.org/w/api.php");
+        var queryString = new Dictionary<string, string>
+        {
+            ["action"] = "query",
+            ["prop"] = "extracts",
+            ["format"] = "json",
+            ["formatversion"] = "2",
+            ["redirects"] = "1",
+            ["explaintext"] = "1",
+            // Keep wiki-style headings like "== History =="
+            ["exsectionformat"] = "wiki",
+            ["titles"] = pageTitle
+        };
+        if(!full)
+        {
+            queryString["exintro"] = "1";
+        }
+        urlBuilder.Query = string.Join("&", queryString.Select(kv => $"{WebUtility.UrlEncode(kv.Key)}={WebUtility.UrlEncode(kv.Value)}"));
+        return urlBuilder.ToString();
+
+    }
+
+    static async Task<Document> GetWikipediaPage(string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        using var response = await WikipediaHttpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+
+        var json = await response.Content.ReadAsStringAsync();
+        var apiResponse = JsonSerializer.Deserialize<WikiApiResponse>(json, JSonOpts)
+                  ?? throw new InvalidOperationException("Failed to deserialize Wikipedia response.");
+
+        var firstPage = apiResponse.Query?.Pages?.FirstOrDefault();
+
+        if (firstPage is null || firstPage.Missing is true)
+            throw new Exception($"Could not find a Wikipedia page for {url}");
+
+        if (string.IsNullOrWhiteSpace(firstPage.Title) || string.IsNullOrWhiteSpace(firstPage.Extract))
+            throw new Exception($"Empty Wikipedia page returned for {url}");
+
+        var title = firstPage.Title!;
+        var content = firstPage.Extract!.Trim();
+
+        var id = Utils.ToUrlSafeId(title);
+        var pageUrl = $"https://en.wikipedia.org/wiki/{Uri.EscapeDataString(title.Replace(' ', '_'))}";
+
+        return new Document(
+            Id: id,
+            Title: title,
+            Content: content,
+            PageUrl: pageUrl
+        );
+    }
+
+    public Task<Document> GetWikipediaPageForTitle(string title, bool full = false)
+    {
+        var url = CreateWikipediaUrl(title, full);
+        return GetWikipediaPage(url);
+    }
+}

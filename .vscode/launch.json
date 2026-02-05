@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "2-semantic-search (http://localhost:5108)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}/2-semantic-search/bin/Debug/net10.0/2-semantic-search.dll",
+            "cwd": "${workspaceFolder}/2-semantic-search",
+            "env": {
+                "ASPNETCORE_URLS": "http://localhost:5108"
+            },
+            "launchBrowser": {
+                "enabled": true,
+                "args": "http://localhost:5108"
+            }
+        }
+    ]
+}

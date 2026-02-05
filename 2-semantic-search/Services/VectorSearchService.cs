@@ -1,0 +1,49 @@
+using ChatBot.Models;
+using Microsoft.Extensions.AI;
+using Pinecone;
+
+namespace ChatBot.Services;
+
+public class VectorSearchService(StringEmbeddingGenerator embeddingGenerator,
+    IndexClient pineConeIndex,
+    DocumentStore documentStore)
+
+{
+    public async Task<List<Document>> FindTopKArticles(string query, int k)
+    {
+        if(string.IsNullOrWhiteSpace(query))
+            return[];
+
+        var embeddings = await embeddingGenerator.GenerateAsync([query],
+        new EmbeddingGenerationOptions
+        {
+            Dimensions = 512
+        });
+
+        var vector = embeddings[0].Vector.ToArray();
+
+        var response = await pineConeIndex.QueryAsync(new QueryRequest
+        {
+            Vector = vector,
+            TopK = (uint) k,
+            IncludeMetadata = true
+        });
+
+        var matches = (response.Matches ?? []).ToList();
+        if(matches.Count == 0)
+            return [];
+
+        var ids = matches.Select(m => m.Id!).Where(id => !string.IsNullOrEmpty(id));
+
+        var articles = documentStore.GetDocuments(ids);
+
+        var scorebyId = matches.Where(m => m.Id is not null)
+                    .ToDictionary(m => m.Id, m => m.Score);
+        
+        var ordered = articles.OrderByDescending( a=> scorebyId.GetValueOrDefault(a.Id, 0f))
+            .Take(k)
+            .ToList();
+        
+        return ordered;
+    }
+}

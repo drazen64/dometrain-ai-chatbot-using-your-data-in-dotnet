@@ -8,6 +8,7 @@ using System.Net.NetworkInformation;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using System.Xml;
 using ChatBot.Models;
 using Microsoft.VisualBasic;
@@ -124,5 +125,37 @@ public partial class WikipediaClient
     {
         var url = CreateWikipediaUrl(title, full);
         return GetWikipediaPage(url);
+    }
+
+    [GeneratedRegex(@"^\s*=+\s*(.+?)\s*=+\s*", RegexOptions.Multiline | RegexOptions.Compiled)]
+    private static partial Regex HeadingRegex();
+
+    public IEnumerable<(string Title, string Content)> SplitIntoSections(string articleText)
+    {
+        var matches = HeadingRegex().Matches(articleText);
+
+        if (matches.Count == 0)
+        {
+            yield return ("Introduction", articleText[..]);
+            yield break;
+        }
+
+        // Returns any text before the first markdown heading as "Introduction"
+        if (matches[0].Index > 0)
+            yield return ("Introduction", articleText[..matches[0].Index]);
+
+        for (int i = 0; i < matches.Count; i++)
+        {
+            var m = matches[i];
+            string sectionName = m.Groups[1].Value.Trim();
+            if (sectionName is "See also" or "References" or "External links" or "Notes")
+                continue;
+
+            int bodyStart = m.Index + m.Length;
+            int bodyEnd = (i < matches.Count - 1) ? matches[i + 1].Index : articleText.Length;
+            int length = bodyEnd - bodyStart;
+            var content = articleText.Substring(bodyStart, length);
+            yield return (sectionName, content);
+        }
     }
 }

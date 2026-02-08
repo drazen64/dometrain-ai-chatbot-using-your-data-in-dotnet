@@ -10,7 +10,7 @@ Startup.ConfigureServices(builder);
 var app = builder.Build();
 
 //var indexer = app.Services.GetRequiredService<IndexBuilder>();
-//await indexer.BuildDocumentIndex(SourceData.LandmarkNames);
+//await indexer.BuildIndex(SourceData.LandmarkNames);
 
 //System.Console.WriteLine("Done");
 
@@ -18,7 +18,7 @@ app.UseCors("FrontendCors");
 
 app.MapGet("/search", async (string query, VectorSearchService search) =>
 {
-    var results = await search.FindTopKArticles(query, 3);
+    var results = await search.FindTopKChunks(query, 3);
     return Results.Ok(results);
 });
 

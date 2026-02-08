@@ -6,6 +6,7 @@
     <RootNamespace>_2_semantic_search</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <NoWarn>SKEXP0050</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

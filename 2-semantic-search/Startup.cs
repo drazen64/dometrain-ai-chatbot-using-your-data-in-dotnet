@@ -28,12 +28,16 @@ static class Startup
             apiKey: openAiKey
         ).AsIEmbeddingGenerator());
 
-        builder.Services.AddSingleton<IndexClient>(s => new PineconeClient(pineConeKey).Index("wikipedia-landmarks"));
+        builder.Services.AddSingleton<IndexClient>(s => new PineconeClient(pineConeKey).Index("landmark-chunks"));
 
         builder.Services.AddSingleton<WikipediaClient>();
 
         builder.Services.AddSingleton<IndexBuilder>();
 
         builder.Services.AddSingleton<DocumentStore>();
+
+        builder.Services.AddSingleton<ArticleSplitter>();
+        builder.Services.AddSingleton<DocumentChunkStore>();
+
     }
 }

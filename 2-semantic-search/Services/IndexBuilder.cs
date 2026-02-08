@@ -1,42 +1,63 @@
+using System.Collections.Immutable;
 using ChatBot.Services;
+using Microsoft.Extensions.AI;
 using Pinecone;
 
 
 namespace ChatBot.Services;
 public class IndexBuilder(
     StringEmbeddingGenerator embeddingGenerator,
-    IndexClient pineConeIndex,
+    IndexClient pineconeIndex,
     WikipediaClient wikipediaClient,
-    DocumentStore documentStore)
+    DocumentChunkStore chunkStore,
+    ArticleSplitter splitter)
 {
-    public async Task BuildDocumentIndex(string[] pageTitles)
+    public async Task BuildIndex(string[] pageTitles)
     {
-        foreach(var landMark in pageTitles)
+        foreach (var title in pageTitles)
         {
-            var wikiPage = await wikipediaClient.GetWikipediaPageForTitle(landMark);
-            var embedding = await embeddingGenerator.GenerateAsync([wikiPage.Content], 
-                new Microsoft.Extensions.AI.EmbeddingGenerationOptions
-                {
-                    Dimensions = 512
-                });
-            var vectorArray = embedding[0].Vector.ToArray();
-            var pineConeVector = new Vector
+            // Swap out the wikipediaClient here to connect to your own data source!
+            var page = await wikipediaClient.GetWikipediaPageForTitle(title, full: true);
+            var sections = wikipediaClient.SplitIntoSections(page.Content);
+
+            var chunks = sections.SelectMany(section =>
+                        splitter.Chunk(page.Title, section.Content, page.PageUrl, section.Title))
+                        .Take(25)
+                        .ToImmutableList();
+
+            var stringsToEmbed = chunks.Select(c => $"{c.Title} > {c.Section}\n\n{c.Content}");
+
+            // Makes a call to OpenAI to create an embedding from these strings
+            var embeddings = await embeddingGenerator.GenerateAsync(
+                stringsToEmbed,
+                new EmbeddingGenerationOptions { Dimensions = 512 }
+            );
+
+            var vectors = chunks.Select((chunk, index) => new Vector
             {
-                Id = wikiPage.Id,
-                Values = vectorArray,
+                Id = chunk.Id,
+                Values = embeddings[index].Vector.ToArray(),
                 Metadata = new Metadata
                 {
-                    {"title", wikiPage.Title}
+                    { "title", chunk.Title },
+                    { "section", chunk.Section },
+                    { "chunk_index", chunk.ChunkIndex }
                 }
-            };
-
-            await pineConeIndex.UpsertAsync(new UpsertRequest
-            {
-                Vectors = [pineConeVector]
             });
 
-            //TODO Save to Database
-            documentStore.SaveDocument(wikiPage);
+            await pineconeIndex.UpsertAsync(new UpsertRequest
+            {
+                Vectors = vectors
+            });
+
+            foreach (var chunk in chunks)
+            {
+                chunkStore.SaveDocumentChunk(chunk);
+            }
+
+            // If you have rate limit issues with Pinecone (may happen based on your plan) then uncomment this Task.Delay()
+            // see https://docs.pinecone.io/reference/api/database-limits#rate-limits
+            // await Task.Delay(500);
         }
     }
 }

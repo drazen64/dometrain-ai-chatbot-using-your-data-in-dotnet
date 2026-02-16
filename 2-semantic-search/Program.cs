@@ -16,10 +16,20 @@ var app = builder.Build();
 
 app.UseCors("FrontendCors");
 
+
+// GET /search?query=...
 app.MapGet("/search", async (string query, VectorSearchService search) =>
 {
     var results = await search.FindTopKChunks(query, 3);
     return Results.Ok(results);
 });
+
+// GET /ask?question=...
+app.MapGet("/ask", async (string question, RagQuestionService ragQuestionService) =>
+{
+    var answer = await ragQuestionService.AnswerQuestion(question);
+    return Results.Ok(answer);
+});
+
 
 app.Run();

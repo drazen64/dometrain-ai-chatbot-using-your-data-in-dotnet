@@ -21,6 +21,41 @@ static class Startup
                 );
         });
 
+
+
+        // Configure logging
+        builder.Services.AddLogging(logging => logging.AddConsole().SetMinimumLevel(LogLevel.Information));
+        builder.Services.AddSingleton<ILoggerFactory>(sp =>
+            LoggerFactory.Create(builder =>
+            {
+                builder.AddConsole();
+                builder.SetMinimumLevel(LogLevel.Information);
+            }));
+
+        // Configure OpenAI Chat Client with logging and function invocation support
+        builder.Services.AddSingleton<IChatClient>(sp =>
+        {
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+            var client = new OpenAI.Chat.ChatClient(
+                "gpt-5-mini", 
+                openAiKey).AsIChatClient();
+            return new ChatClientBuilder(client)
+                .UseLogging(loggerFactory)
+                .UseFunctionInvocation(loggerFactory, c =>
+                {
+                    c.IncludeDetailedErrors = true;
+                })
+                .Build(sp);
+        });
+
+        builder.Services.AddTransient<ChatOptions>(s => new ChatOptions
+        {
+
+        });
+
+        builder.Services.AddSingleton<RagQuestionService>();
+        builder.Services.AddSingleton<PromptService>();
+
         builder.Services.AddSingleton<VectorSearchService>();
 
         builder.Services.AddSingleton<StringEmbeddingGenerator>( s=> new OpenAI.Embeddings.EmbeddingClient(            
@@ -38,6 +73,7 @@ static class Startup
 
         builder.Services.AddSingleton<ArticleSplitter>();
         builder.Services.AddSingleton<DocumentChunkStore>();
+        builder.Services.AddSingleton<VectorSearchServiceWithHyde>();
 
     }
 }
